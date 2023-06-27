@@ -1,0 +1,62 @@
+version: "3"
+services:
+  iso-srv:
+    container_name: iso-srv
+    build: ./iso-srv
+    restart: unless-stopped
+    environment:
+      HTTP_PORT: "3003"
+      IMAGE_URL: "https://releases.ubuntu.com/22.04.2/ubuntu-22.04.2-live-server-amd64.iso"
+    volumes:
+      - ./data/iso-srv:/srv
+    healthcheck:
+      test: curl -LI http://localhost:3003/main.iso || exit 1
+      interval: 10s
+      retries: 30
+      start_period: 20s
+      timeout: 10s
+    networks:
+      labnet:
+        ipv4_address: 10.1.5.5
+
+  cloud-init-prep:
+    container_name: cloud-init-prep
+    build: ./cloud-init-prep
+    environment:
+      CLOUD_INIT_FILES: "/cloud-init/user-data"
+    volumes:
+      - ./cloud-init:/cloud-init
+
+  ubuntu-vm1:
+    container_name: ubuntu-vm1
+    image: ghcr.io/qemu-tools/qemu-docker:latest
+    environment:
+      DISK_SIZE: "20G"
+      BOOT: "http://iso-srv:3003/main.iso"
+      ISO_MNT: "true"
+      QEMU_EXTRA_ARGS: "-drive file=/cloud-init/seed.iso,format=raw,if=virtio -kernel /mnt/casper/vmlinuz -initrd /mnt/casper/initrd -append 'autoinstall'"
+    privileged: true
+    ports:
+      - 2222:22
+    restart: unless-stopped
+    stop_grace_period: 1m
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./data/ubuntu-vm1:/storage
+      - ./cloud-init:/cloud-init
+    networks:
+      labnet:
+        ipv4_address: 10.1.5.10
+    depends_on:
+      iso-srv:
+        condition: service_healthy
+      cloud-init-prep:
+        condition: service_completed_successfully
+
+networks:
+  labnet:
+    ipam:
+      driver: default
+      config:
+        - subnet: "10.1.5.0/24"

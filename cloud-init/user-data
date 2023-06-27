@@ -1,0 +1,20 @@
+#cloud-config
+users:
+  - default
+  - name: heywoodlh
+    gecos: Spencer Heywood
+    primary_group: heywoodlh
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo
+    ssh_import_id:
+      - gh:heywoodlh
+
+runcmd:
+  - systemctl enable --now ssh.service
+
+final_message: |
+  cloud-init has finished
+  version: $version
+  timestamp: $timestamp
+  datasource: $datasource
+  uptime: $uptime
